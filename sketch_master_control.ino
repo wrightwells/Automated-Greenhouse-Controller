@@ -36,6 +36,7 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 #define mqttFan2Overide "stat/PSG/fan2Overide"
 #define mqttPumpControl "stat/PSG/pumpControl"
 #define mqttPumpStatus "stat/PSG/pumpStatus"
+#define mqttFlowRate "stat/PSG/flowRate"
 //mqtt Receive
 #define mqttFanTemp "ctrl/PSG/VentilationControl"
 //
@@ -58,13 +59,27 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 #define doorSensorPin 39    //Door reed switch
 #define skipOverWifiPin 33  //Door reed switch
 #define SoilMoisturePin 35  //soil moisture
-#define DHT1Pin 13          //DHT High Mount
-#define DHT2Pin 14          //DHT Low Mount
-#define IntAirTempPin 25
+#define DHT1Pin 13          //DHT High Mounted
+#define DHT2Pin 14          //DHT Low Mounted
+#define IntAirTempPin 25    //Intake fan air temp
+#define flowRatePin 2       //Irrigation water flow rate
 String statusOn = String("On ");
 String statusOff = String("Off ");
 String winO = String("Open"); 
 String winC = String("Closed");
+//flowsensor settings
+#define LED_BUILTIN 2
+#define SENSOR  27
+long currentMillis = 0;
+long previousMillis = 0;
+int interval = 1000;
+boolean ledState = LOW;
+float calibrationFactor = 4.5;
+volatile byte pulseCount;
+byte pulse1Sec = 0;
+float flowRate;
+unsigned int flowMilliLitres;
+unsigned long totalMilliLitres;
 //declare non const variables
 int soilMoisturePercent = 0;
 int windowOverideStatus = 0;
@@ -101,7 +116,10 @@ DHT dht2(DHT2Pin, DHTTYPE);          // Initialize DHT Low sensor.
 LiquidCrystal_I2C lcd(0x3F, 16, 2);  //initialise LCD
 OneWire oneWire(IntAirTempPin);
 DallasTemperature sensors(&oneWire);
-
+void IRAM_ATTR pulseCounter()
+{
+  pulseCount++;
+}
 void setup() {
 	Serial.begin(9600);
 	lcd.init();
@@ -121,7 +139,8 @@ void setup() {
 	pinMode(relayOutputPin8, OUTPUT);  // Flap intake
 	pinMode(doorSensorPin, INPUT_PULLUP);
 	pinMode(skipOverWifiPin, INPUT_PULLUP);
-	// pinMode(IntAirTempPin, INPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(SENSOR, INPUT_PULLUP);
 	//set relays as open (devices off) on startup
 	digitalWrite(relayOutputPin1, HIGH);
 	digitalWrite(relayOutputPin2, HIGH);
@@ -138,6 +157,13 @@ void setup() {
 		client.setCallback(callback);
 		reconnectmqtt();
 	}
+  pulseCount = 0;
+  flowRate = 0.0;
+  flowMilliLitres = 0;
+  totalMilliLitres = 0;
+  previousMillis = 0;
+  attachInterrupt(digitalPinToInterrupt(SENSOR), pulseCounter, FALLING);
+
 }
 
 void loop() {
@@ -168,7 +194,24 @@ void loop() {
     if(cyclei == 4)
       cyclei=0;
 	}
+  currentMillis = millis();
+  if (currentMillis - previousMillis > interval)    // Only process flowratecounters once per second
+  { 
+    processFlowRate();
+   
+  }
 }
+void processFlowRate()
+{
+
+    pulse1Sec = pulseCount;
+    pulseCount = 0;
+    flowRate = ((1000.0 / (millis() - previousMillis)) * pulse1Sec) / calibrationFactor;
+    previousMillis = millis();
+    flowMilliLitres = (flowRate / 60) * 1000;
+    totalMilliLitres += flowMilliLitres;
+}
+
 void publishMqtt() {
 
 	// publish (send) the values to the RPi
@@ -183,7 +226,7 @@ void publishMqtt() {
 	client.publish(mqttFan2Status, String(fan2Status).c_str(), true);
 	client.publish(mqttFan1Status, String(fan1Status).c_str(), true);
 	client.publish(mqttPumpStatus, String(pumpStatus).c_str(), true);
-
+	client.publish(mqttFlowRate, String(flowRate).c_str(), true);
 	client.loop();
 }
 void topicsSubscribe() {
@@ -548,6 +591,8 @@ void publishLCDLoopStatusData(int cycle, int pump, int fan1, int fan2, int win1,
     lcd.setCursor(0, 1);
 		lcd.print("Pump:");
     lcd.print(pumpS);
+    lcd.print("Lm:");
+    lcd.print(flowRate);
 		break;
 
     case 3://window statuses
