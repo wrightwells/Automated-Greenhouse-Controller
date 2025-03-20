@@ -61,6 +61,10 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 #define DHT1Pin 13          //DHT High Mount
 #define DHT2Pin 14          //DHT Low Mount
 #define IntAirTempPin 25
+String statusOn = String("On ");
+String statusOff = String("Off ");
+String winO = String("Open"); 
+String winC = String("Closed");
 //declare non const variables
 int soilMoisturePercent = 0;
 int windowOverideStatus = 0;
@@ -83,6 +87,11 @@ float temp2 = 0;
 float humid2 = 0;
 float intakeTemp = 0;
 int cyclei = 0;
+String fan1S;
+String fan2S;
+String pumpS;
+String win1S;
+String win2S;
 //
 
 WiFiClient espClient;
@@ -151,15 +160,13 @@ void loop() {
 		getSoilMoistureValues();
 		controlIrrigation();
 		publishMqtt();
-		publishClimateLCD(cyclei);
-
+		publishLCDLoopStatusData(cyclei,pumpStatus,fan1Status,fan2Status,window1Status,window2Status);
 		Serial.println();
 		Serial.print("Celsius temperature: ");
 		Serial.print(sensors.getTempCByIndex(0));  // Why "byIndex"? You can have more than one IC on the same bus. 0 refers to the first IC on the wire
-		if (cyclei == 0)
-			cyclei = 1;
-		else if (cyclei == 1)
-			cyclei = 0;
+    cyclei++;
+    if(cyclei == 4)
+      cyclei=0;
 	}
 }
 void publishMqtt() {
@@ -189,7 +196,7 @@ void PublishLCD(String lcdLine1, String lcdLine2, int LcdDelay) {
 	lcd.print(lcdLine1);
 	lcd.setCursor(0, 1);  //Set cursor to character 2 on line 0
 	lcd.print(lcdLine2);
-	//delay(LcdDelay);
+	delay(LcdDelay);
 	//Serial.println(lcdLine1);
 	//Serial.println(lcdLine2);
 }
@@ -337,12 +344,12 @@ void controlPump(int control) {
 	if (control == 1) {
 		digitalWrite(relayOutputPin5, HIGH);
 		pumpStatus = 1;
-		PublishLCD("Pump is on...", "", 1000);
+		//PublishLCD("Pump is on...", "", 1000);
 
 	} else if (control == 0) {
 		digitalWrite(relayOutputPin5, LOW);
 		pumpStatus = 0;
-		PublishLCD("Pump is off...", "", 1000);
+		//PublishLCD("Pump is off...", "", 1000);
 	}
 }
 void getClimateValues() {
@@ -395,18 +402,25 @@ void controlWindows() {
 	if (windowNow - windowPause > WindowFlutter) {
 
 		if (temp1 > Open_WindowsTemp1 && windowOverideStatus == 0) {
+      if(window1Status==0)
+			  PublishLCD("Gosh it's warm!", "Opening Win 1", 1000);
 			changeWindowState(1, relayOutputPin1);
 			windowPause = windowNow;
-			PublishLCD("Gosh it's hot!", "Win 1 is Open", 1000);
+
 		} else if (temp1 <= Open_WindowsTemp1 && windowOverideStatus == 0) {
+      if(window1Status==1)
+			  PublishLCD("Cooling down", "Closing Win 1", 1000);
 			changeWindowState(0, relayOutputPin1);
 			windowPause = windowNow;
 		}
 		if (temp1 > Open_WindowsTemp2 && windowOverideStatus == 0) {
+      if(window2Status==0)
+			  PublishLCD("Gosh it's hot!", "Opening Win 2", 1000);
 			changeWindowState(1, relayOutputPin2);
-			PublishLCD("Gosh it's hot!", "Win 1&2 are Open", 1000);
 			windowPause = windowNow;
 		} else if (temp1 <= Open_WindowsTemp2 && windowOverideStatus == 0) {
+      if(window1Status==1)
+			  PublishLCD("Cooling down", "Closing Win 2", 1000);
 			changeWindowState(0, relayOutputPin2);
 			windowPause = windowNow;
 		}
@@ -469,11 +483,32 @@ void getSoilMoistureValues() {
 	}
 	Serial.println("%");
 }
-void publishClimateLCD(int cycle) {
+void publishLCDLoopStatusData(int cycle, int pump, int fan1, int fan2, int win1, int win2) {
 	//newTemp = round(temp1*10)/10.0;
+  if(pump==0)
+    pumpS = statusOff;
+  else
+    pumpS = statusOn;
+  if(fan1==0)
+    fan1S = statusOff;
+  else
+    fan1S = statusOn;
+  if(fan2==0)
+    fan2S = statusOff;
+  else
+    fan2S = statusOn;
+  if(win1==0)
+    win1S = winC;
+  else
+    win1S = winO;
+  if(win2==0)
+    win2S = winC;
+  else
+    win2S = winO;
+
 	switch(cycle)
 	{
-	case 0:
+	  case 0://climate data
 		lcd.clear();
 		lcd.setCursor(0, 0);  //Set cursor to character 0 on line 0
 		lcd.print("T1:");
@@ -486,20 +521,44 @@ void publishClimateLCD(int cycle) {
 		lcd.setCursor(0, 1);
 		lcd.print("T2:");
 		lcd.print(temp2, 1);
-		lcd.print("H1:");
-		lcd.print(humid1, 1);
+		lcd.print("c ");
+		lcd.print("H2:");
+		lcd.print(humid2, 1);
 		break;
 
-	case 1:
+	  case 1:// soil and intake air temp
 		lcd.clear();
 		lcd.setCursor(0, 0);
-		lcd.print("Soil1:");
+		lcd.print("Soil M:");
 		lcd.print(soilMoisturePercent, 1);
 		lcd.print("% ");
-		lcd.print("IAT:");
+    lcd.setCursor(0, 1);
+		lcd.print("In Air Temp:");
 		lcd.print(intakeTemp, 1);
-		lcd.print("%");
+		lcd.print("c");
 		break;
+
+    case 2://Fan statuses
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("FIn:");
+		lcd.print(fan1S);
+		lcd.print("FEx:");
+		lcd.print(fan2S);
+    lcd.setCursor(0, 1);
+		lcd.print("Pump:");
+    lcd.print(pumpS);
+		break;
+
+    case 3://window statuses
+    lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("Window 1:");
+		lcd.print(win1S);
+    lcd.setCursor(0, 1);
+		lcd.print("Window 2:");
+    lcd.print(win2S);  
+    break;
 	}
 }
 void controlIrrigation() {
