@@ -27,16 +27,17 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 #define mqttIntTemp "stat/PSG/mqttIntTemp"   //Humidity
 #define mqttSoilMoisture1 "stat/PSG/soilM1"  //Soil Moisture 1
 #define mqttSoilMoisture2 "stat/PSG/soilM2"  //Soil Moisture 2
-#define mqttWindowOveride "stat/PSG/windowOveride"
+#define mqttWindowOverride "cmds/PSG/windowOverride"
 #define mqttWindow1Status "stat/PSG/window1Status"  //status of the window/open or closed
 #define mqttWindow2Status "stat/PSG/window2Status"  //status of the window/open or closed
 #define mqttFan1Status "stat/PSG/Fan1Status"
 #define mqttFan2Status "stat/PSG/Fan2Status"
-#define mqttFan1Overide "stat/PSG/fan1Overide"
-#define mqttFan2Overide "stat/PSG/fan2Overide"
+#define mqttFan1Override "stat/PSG/fan1Override"
+#define mqttFan2Override "stat/PSG/fan2Override"
 #define mqttPumpControl "stat/PSG/pumpControl"
 #define mqttPumpStatus "stat/PSG/pumpStatus"
 #define mqttFlowRate "stat/PSG/flowRate"
+#define mqttDoorStatus "stat/PSG/doorStatus"
 //mqtt Receive
 #define mqttFanTemp "ctrl/PSG/VentilationControl"
 //
@@ -50,26 +51,25 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 //define GPIO pins
 #define relayOutputPin1 19  // Window 1
 #define relayOutputPin2 15  // Window 2
-#define relayOutputPin3 16  // Fan Intake
-#define relayOutputPin4 5   // Fan Exhaust
+#define relayOutputPin3 5  // Fan Intake
+#define relayOutputPin4 16   // Fan Exhaust
 #define relayOutputPin5 17  // Pump
 #define relayOutputPin6 23  // TBA
-#define relayOutputPin7 26  // Flap Exhaust
+#define relayOutputPin7 4  // Flap Exhaust
 #define relayOutputPin8 18  // Flap intake
-#define doorSensorPin 39    //Door reed switch
-#define skipOverWifiPin 33  //Door reed switch
+#define doorSensorPin 32    //Door reed switch
+#define skipOverWifiPin 33  //Run without having to connect ot wifi
 #define SoilMoisturePin 35  //soil moisture
 #define DHT1Pin 13          //DHT High Mounted
 #define DHT2Pin 14          //DHT Low Mounted
 #define IntAirTempPin 25    //Intake fan air temp
-#define flowRatePin 2       //Irrigation water flow rate
+#define FlowSensorPin  27
+//text definitions
 String statusOn = String("On ");
 String statusOff = String("Off ");
 String winO = String("Open"); 
 String winC = String("Closed");
 //flowsensor settings
-#define LED_BUILTIN 2
-#define SENSOR  27
 long currentMillis = 0;
 long previousMillis = 0;
 int interval = 1000;
@@ -80,12 +80,13 @@ byte pulse1Sec = 0;
 float flowRate;
 unsigned int flowMilliLitres;
 unsigned long totalMilliLitres;
-//declare non const variables
+//declare other non const variables
 int soilMoisturePercent = 0;
-int windowOverideStatus = 0;
-int fan1OverideStatus = 0;
-int fan2OverideStatus = 0;
-int pumpOverideStatus = 0;
+int doorStatus;
+int windowOverrideStatus = 0;
+int fan1OverrideStatus = 0;
+int fan2OverrideStatus = 0;
+int pumpOverrideStatus = 0;
 int window1Status = 0;  //0= closed 1= open
 int window2Status = 0;  //0= closed 1= open
 int fan1Status = 0;
@@ -107,6 +108,7 @@ String fan2S;
 String pumpS;
 String win1S;
 String win2S;
+String doorTStatus;
 //
 
 WiFiClient espClient;
@@ -116,7 +118,8 @@ DHT dht2(DHT2Pin, DHTTYPE);          // Initialize DHT Low sensor.
 LiquidCrystal_I2C lcd(0x3F, 16, 2);  //initialise LCD
 OneWire oneWire(IntAirTempPin);
 DallasTemperature sensors(&oneWire);
-void IRAM_ATTR pulseCounter()
+
+void IRAM_ATTR pulseCounter() //this function must appear here before the setup
 {
   pulseCount++;
 }
@@ -137,10 +140,10 @@ void setup() {
 	pinMode(relayOutputPin6, OUTPUT);  // TBA
 	pinMode(relayOutputPin7, OUTPUT);  // Flap Exhaust
 	pinMode(relayOutputPin8, OUTPUT);  // Flap intake
-	pinMode(doorSensorPin, INPUT_PULLUP);
 	pinMode(skipOverWifiPin, INPUT_PULLUP);
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(SENSOR, INPUT_PULLUP);
+  pinMode(DHT1Pin,INPUT);
+  pinMode(FlowSensorPin, INPUT_PULLUP);
+  pinMode(doorSensorPin, INPUT_PULLUP); 
 	//set relays as open (devices off) on startup
 	digitalWrite(relayOutputPin1, HIGH);
 	digitalWrite(relayOutputPin2, HIGH);
@@ -150,7 +153,7 @@ void setup() {
 	digitalWrite(relayOutputPin6, HIGH);
 	digitalWrite(relayOutputPin7, HIGH);
 	digitalWrite(relayOutputPin8, HIGH);
-	wifiSkipState = digitalRead(doorSensorPin);
+	wifiSkipState = digitalRead(skipOverWifiPin);
 	if (wifiSkipState == HIGH) {
 		wificonnect();
 		client.setServer(mqtt_server, 1883);
@@ -162,11 +165,12 @@ void setup() {
   flowMilliLitres = 0;
   totalMilliLitres = 0;
   previousMillis = 0;
-  attachInterrupt(digitalPinToInterrupt(SENSOR), pulseCounter, FALLING);
+  attachInterrupt(digitalPinToInterrupt(FlowSensorPin), pulseCounter, FALLING);
 
 }
 
 void loop() {
+
 
 	wifiSkipState = digitalRead(skipOverWifiPin);
 	if (wifiSkipState == HIGH) {
@@ -179,6 +183,7 @@ void loop() {
 
 	if (loopnow - loopDelay > 5000) {
 		loopDelay = loopnow;
+    getDoorStatus();
 		getClimateValues();
 		//openCloseFanFlaps();
 		controlWindows();
@@ -196,13 +201,27 @@ void loop() {
 	}
   currentMillis = millis();
   if (currentMillis - previousMillis > interval)    // Only process flowratecounters once per second
-  { 
     processFlowRate();
-   
+}
+void getDoorStatus() {
+  int digitalVal = digitalRead(doorSensorPin);
+  if (digitalVal == LOW) {
+    
+    Serial.println();
+		Serial.print("Door is Closed");
+    Serial.println();
+    doorStatus=1;
+    doorTStatus = winC;
+  }
+  else {
+        Serial.println();
+		Serial.print("Door is Open");
+    Serial.println();
+    doorStatus=0;
+    doorTStatus = winO;
   }
 }
-void processFlowRate()
-{
+void processFlowRate() {
 
     pulse1Sec = pulseCount;
     pulseCount = 0;
@@ -227,6 +246,7 @@ void publishMqtt() {
 	client.publish(mqttFan1Status, String(fan1Status).c_str(), true);
 	client.publish(mqttPumpStatus, String(pumpStatus).c_str(), true);
 	client.publish(mqttFlowRate, String(flowRate).c_str(), true);
+  client.publish(mqttDoorStatus, String(doorTStatus).c_str(), true);
 	client.loop();
 }
 void topicsSubscribe() {
@@ -305,9 +325,9 @@ void reconnectmqtt() {
 		if (client.connect("esp32server2", mqtt_user, mqtt_pass)) {
 			Serial.println("connected");
 			topicsSubscribe();
-			client.subscribe(mqttWindowOveride);
-			client.subscribe(mqttFan1Overide);
-			client.subscribe(mqttFan2Overide);
+			client.subscribe(mqttWindowOverride);
+			client.subscribe(mqttFan1Override);
+			client.subscribe(mqttFan2Override);
 			client.subscribe(mqttPumpControl);
 			client.subscribe(mqttFanTemp);
 		} else {
@@ -331,55 +351,55 @@ void callback(char* topic, byte* message, unsigned int length) {
 	}
 	Serial.println();
 
-	//Let's overide the status of the windows
-	if (String(topic) == "iPSG/windowOveride") {
+	//Let's Override the status of the windows
+	if (String(topic) == "iPSG/windowOverride") {
 		Serial.print("Changing output to ");
 		if (messageTemp == "on") {
-			Serial.println("Overide on");
+			Serial.println("Override on");
 			if (window1Status == 0) {
 				changeWindowState(1, relayOutputPin1);
 				changeWindowState(1, relayOutputPin2);
-				windowOverideStatus = 1;
+				windowOverrideStatus = 1;
 			} else {
 				changeWindowState(0, relayOutputPin1);
 				changeWindowState(0, relayOutputPin2);
-				windowOverideStatus = 1;
+				windowOverrideStatus = 1;
 			}
 		} else if (messageTemp == "off") {
-			Serial.println("Overide off");
+			Serial.println("Override off");
 			//closeWindows();
-			windowOverideStatus = 0;
+			windowOverrideStatus = 0;
 		}
 	}
-	//Let's overide the status of the fan
-	if (String(topic) == mqttFan1Overide) {
+	//Let's Override the status of the fan
+	if (String(topic) == mqttFan1Override) {
 		Serial.print("Changing output to ");
 		if (messageTemp == "on") {
-			Serial.println("Fan Overide on");
+			Serial.println("Fan Override on");
 			if (fan2Status == 0) {
 				changeFanState(1, relayOutputPin3);
 				changeFanState(1, relayOutputPin4);
-				fan2OverideStatus = 1;
+				fan2OverrideStatus = 1;
 			} else {
 				changeFanState(0, relayOutputPin3);
 				changeFanState(0, relayOutputPin4);
-				fan2OverideStatus = 1;
+				fan2OverrideStatus = 1;
 			}
 		} else if (messageTemp == "off") {
-			Serial.println("Fan Overide off");
-			fan2OverideStatus = 0;
+			Serial.println("Fan Override off");
+			fan2OverrideStatus = 0;
 		}
 	}
 	if (String(topic) == mqttPumpControl) {
 		Serial.print("Changing output to ");
 		if (messageTemp == "on") {
-			Serial.println("Overide Pump on");
+			Serial.println("Override Pump on");
 			controlPump(1);
-			pumpOverideStatus = 1;
+			pumpOverrideStatus = 1;
 		} else if (messageTemp == "off") {
-			Serial.println("Overide Pump off");
+			Serial.println("Override Pump off");
 			controlPump(0);
-			pumpOverideStatus = 0;
+			pumpOverrideStatus = 0;
 		}
 	}
 }
@@ -444,24 +464,24 @@ void controlWindows() {
 	long windowNow = millis();
 	if (windowNow - windowPause > WindowFlutter) {
 
-		if (temp1 > Open_WindowsTemp1 && windowOverideStatus == 0) {
+		if (temp1 > Open_WindowsTemp1 && windowOverrideStatus == 0) {
       if(window1Status==0)
 			  PublishLCD("Gosh it's warm!", "Opening Win 1", 1000);
 			changeWindowState(1, relayOutputPin1);
 			windowPause = windowNow;
 
-		} else if (temp1 <= Open_WindowsTemp1 && windowOverideStatus == 0) {
+		} else if (temp1 <= Open_WindowsTemp1 && windowOverrideStatus == 0) {
       if(window1Status==1)
 			  PublishLCD("Cooling down", "Closing Win 1", 1000);
 			changeWindowState(0, relayOutputPin1);
 			windowPause = windowNow;
 		}
-		if (temp1 > Open_WindowsTemp2 && windowOverideStatus == 0) {
+		if (temp1 > Open_WindowsTemp2 && windowOverrideStatus == 0) {
       if(window2Status==0)
 			  PublishLCD("Gosh it's hot!", "Opening Win 2", 1000);
 			changeWindowState(1, relayOutputPin2);
 			windowPause = windowNow;
-		} else if (temp1 <= Open_WindowsTemp2 && windowOverideStatus == 0) {
+		} else if (temp1 <= Open_WindowsTemp2 && windowOverrideStatus == 0) {
       if(window1Status==1)
 			  PublishLCD("Cooling down", "Closing Win 2", 1000);
 			changeWindowState(0, relayOutputPin2);
@@ -488,20 +508,20 @@ void changeFanState(int state, int fan) {  // 1 on 0 off fan 1=in 2=ex
 	}
 }
 void controlVentilation() {  // 1 on 0 off fan 1=in 2=ex
-	if (temp1 >= ExFan_Temp && fan2Status == 0 && fan2OverideStatus == 0) {
+	if (temp1 >= ExFan_Temp && fan2Status == 0 && fan2OverrideStatus == 0) {
 		changeFanState(1, relayOutputPin4);
 		PublishLCD("It's damn hot!", "Exhaust fan on", 1000);
 		Serial.println("Threshold Vent Fan Temp 1 Reached - Fan is on");
-	} else if (temp1 < ExFan_Temp && fan2Status == 1 && fan2OverideStatus == 0) {
+	} else if (temp1 < ExFan_Temp && fan2Status == 1 && fan2OverrideStatus == 0) {
 		PublishLCD("It's cooler", "Exhaust fan off", 1000);
 		Serial.println("Fan Ventilation not required - Fan is off");
 		changeFanState(0, relayOutputPin4);
 	}
-	if (temp1 >= InFan_Temp && fan1Status == 0 && fan1OverideStatus == 0) {
+	if (temp1 >= InFan_Temp && fan1Status == 0 && fan1OverrideStatus == 0) {
 		changeFanState(1, relayOutputPin3);
 		PublishLCD("It's warm!", "Intake fan on", 1000);
 		Serial.println("Threshold Vent Fan Temp 1 Reached - Fan is on");
-	} else if (temp1 < InFan_Temp && fan1Status == 1 && fan1OverideStatus == 0) {
+	} else if (temp1 < InFan_Temp && fan1Status == 1 && fan1OverrideStatus == 0) {
 		PublishLCD("It's cooler", "Intake fan off", 1000);
 		Serial.println("Fan Ventilation not required - Fan is off");
 		changeFanState(0, relayOutputPin3);
@@ -607,8 +627,13 @@ void publishLCDLoopStatusData(int cycle, int pump, int fan1, int fan2, int win1,
 	}
 }
 void controlIrrigation() {
-	if (soilMoisturePercent <= soilDryLevel && soilMoisturePercent != 0 && pumpOverideStatus == 0)
+  if(soilMoisturePercent != 0)
+  {
+	if (soilMoisturePercent <= soilDryLevel && soilMoisturePercent != 0 && pumpOverrideStatus == 0)
 		controlPump(1);
-	if (soilMoisturePercent >= soilWetLevel && pumpOverideStatus == 0)
+	if (soilMoisturePercent >= soilWetLevel && pumpOverrideStatus == 0)
 		controlPump(0);
+  }
+  else
+  controlPump(0);
 }
