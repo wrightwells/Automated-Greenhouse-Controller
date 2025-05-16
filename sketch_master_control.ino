@@ -408,12 +408,12 @@ void callback(char* topic, byte* message, unsigned int length) {
 }
 void controlPump(int control) {
 	if (control == 1) {
-		digitalWrite(relayOutputPin7, HIGH);
+		digitalWrite(relayOutputPin7, LOW);
 		pumpStatus = 1;
 		//PublishLCD("Pump is on...", "", 1000);
 
 	} else if (control == 0) {
-		digitalWrite(relayOutputPin7, LOW);
+		digitalWrite(relayOutputPin7, HIGH);
 		pumpStatus = 0;
 		//PublishLCD("Pump is off...", "", 1000);
 	}
@@ -534,10 +534,13 @@ void getSoilMoistureValues() {
 	float value = analogRead(SoilMoisturePin);
 	Serial.print("Soil moisture: ");
 	//Serial.println(value);
-
-	soilMoisturePercent = map(value, AirCalibrationValue, WaterCalibrationValue, 0, 100);
+	if(value < 500)
+		soilMoisturePercent = 0;
+	else
+		soilMoisturePercent = map(value, AirCalibrationValue, WaterCalibrationValue, 0, 100);
 
 	Serial.println(value);
+	Serial.println(soilMoisturePercent);
 	if (soilMoisturePercent > 100) {
 		soilMoisturePercent = 100;
 		Serial.print("100");
