@@ -24,14 +24,14 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 #define mqttHumid1 "stat/PSG/humid1"         //Humidity
 #define mqttTemp2 "stat/PSG/temp2"           //Temperature
 #define mqttHumid2 "stat/PSG/humid2"         //Humidity
-#define mqttIntTemp "stat/PSG/mqttIntTemp"   //Humidity
+#define mqttIntTemp "stat/PSG/intakeFanTemp"   //intake fan air temp
 #define mqttSoilMoisture1 "stat/PSG/soilM1"  //Soil Moisture 1
 #define mqttSoilMoisture2 "stat/PSG/soilM2"  //Soil Moisture 2
 #define mqttWindowOverride "cmds/PSG/windowOverride"
 #define mqttWindow1Status "stat/PSG/window1Status"  //status of the window/open or closed
 #define mqttWindow2Status "stat/PSG/window2Status"  //status of the window/open or closed
-#define mqttFan1Status "stat/PSG/Fan1Status"
-#define mqttFan2Status "stat/PSG/Fan2Status"
+#define mqttFan1Status "stat/PSG/fan1Status"
+#define mqttFan2Status "stat/PSG/fan2Status"
 #define mqttFan1Override "cmds/PSG/fan1Override"
 #define mqttFan2Override "cmds/PSG/fan2Override"
 #define mqttPumpControl "cmds/PSG/pumpOverride"
@@ -44,8 +44,8 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 //temperature Controls
 #define Open_WindowsTemp1 21
 #define Open_WindowsTemp2 23
-#define InFan_Temp 25  //1 In Intake Fan
-#define ExFan_Temp 27  //2 Ex Exhaust Fan
+#define InFan_Temp 29  //1 In Intake Fan
+#define ExFan_Temp 35  //2 Ex Exhaust Fan
 //
 
 //define GPIO pins
@@ -53,7 +53,7 @@ long WindowFlutter = 60000;         //time break before windows reoperate after 
 #define relayOutputPin2 15  // Window 2
 #define relayOutputPin3 4  // Flap intake
 #define relayOutputPin4 18  // Flap Exhaustt
-#define relayOutputPin5 5   // Fan Exhaus
+#define relayOutputPin5 5   // Fan Exhaust
 #define relayOutputPin6 16  // Fan Intake
 #define relayOutputPin7 17  // Pump
 #define relayOutputPin8 23  // TBA
@@ -378,19 +378,39 @@ void callback(char* topic, byte* message, unsigned int length) {
 		if (messageTemp == "on") {
 			Serial.println("Fan Override on");
 			if (fan1Status == 0) {
-				changeFanState(1, relayOutputPin5);
+
 				changeFanState(1, relayOutputPin6);
 				fan1OverrideStatus = 1;
 			} else {
-				changeFanState(0, relayOutputPin5);
+
 				changeFanState(0, relayOutputPin6);
 				fan1OverrideStatus = 1;
 			}
 		} else if (messageTemp == "off") {
 			Serial.println("Fan Override off");
-				changeFanState(0, relayOutputPin5);
+
 				changeFanState(0, relayOutputPin6);			
 			fan1OverrideStatus = 0;
+		}
+	}
+	if (String(topic) == mqttFan2Override) {
+		Serial.print("Changing output to ");
+		if (messageTemp == "on") {
+			Serial.println("Fan Override on");
+			if (fan2Status == 0) {
+				changeFanState(1, relayOutputPin5);
+				
+				fan2OverrideStatus = 1;
+			} else {
+				changeFanState(0, relayOutputPin5);
+				
+				fan2OverrideStatus = 1;
+			}
+		} else if (messageTemp == "off") {
+			Serial.println("Fan Override off");
+				changeFanState(0, relayOutputPin5);
+			
+			fan2OverrideStatus = 0;
 		}
 	}
 	if (String(topic) == mqttPumpControl) {
@@ -453,10 +473,10 @@ void changeWindowState(int state, int window) {
 		break;
 	}
 	switch (window) {
-	case 1:
+	case 19:
 		window1Status = state;
 		break;
-	case 2:
+	case 15:
 		window2Status = state;
 		break;
 	}
@@ -493,7 +513,7 @@ void controlWindows() {
 	}
 }
 
-void changeFanState(int state, int fan) {  // 1 on 0 off fan 1=in 2=ex
+void changeFanState(int state, int fan) {  // 1 on 0 off fan 16=in 5=ex
 	switch (state) {
 	case 1:
 		digitalWrite(fan, LOW);
@@ -502,32 +522,32 @@ void changeFanState(int state, int fan) {  // 1 on 0 off fan 1=in 2=ex
 		digitalWrite(fan, HIGH);
 	}
 	switch (fan) {
-	case 1:
+	case 16:
 		fan1Status = state;
 		break;
-	case 2:
+	case 5:
 		fan2Status = state;
 		break;
 	}
 }
 void controlVentilation() {  // 1 on 0 off fan 1=in 2=ex
 	if (temp1 >= ExFan_Temp && fan2Status == 0 && fan2OverrideStatus == 0) {
-		changeFanState(1, relayOutputPin6);
+		changeFanState(1, relayOutputPin5);
 		PublishLCD("It's damn hot!", "Exhaust fan on", 1000);
 		Serial.println("Threshold Vent Fan Temp 1 Reached - Fan is on");
 	} else if (temp1 < ExFan_Temp && fan2Status == 1 && fan2OverrideStatus == 0) {
 		PublishLCD("It's cooler", "Exhaust fan off", 1000);
 		Serial.println("Fan Ventilation not required - Fan is off");
-		changeFanState(0, relayOutputPin6);
+		changeFanState(0, relayOutputPin5);
 	}
 	if (temp1 >= InFan_Temp && fan1Status == 0 && fan1OverrideStatus == 0) {
-		changeFanState(1, relayOutputPin5);
+		changeFanState(1, relayOutputPin6);
 		PublishLCD("It's warm!", "Intake fan on", 1000);
 		Serial.println("Threshold Vent Fan Temp 1 Reached - Fan is on");
 	} else if (temp1 < InFan_Temp && fan1Status == 1 && fan1OverrideStatus == 0) {
 		PublishLCD("It's cooler", "Intake fan off", 1000);
 		Serial.println("Fan Ventilation not required - Fan is off");
-		changeFanState(0, relayOutputPin5);
+		changeFanState(0, relayOutputPin6);
 	}
 }
 void getSoilMoistureValues() {
