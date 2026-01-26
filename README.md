@@ -84,4 +84,23 @@ Capacitive Soil Sensor	Longer lifespan
 Opto-isolated Relays	ESP32 protection
 RTC Module	Time-based irrigation
 Fuse / Circuit Breaker	        Safety
+
+Application Flow......
+
+BOOT
+ └── setup()
+     ├── init hardware
+     ├── init sensors
+     ├── init display
+     └── optional WiFi/MQTT
+
+LOOP
+ ├── keep MQTT alive
+ ├── every 5s:
+ │    ├── read sensors
+ │    ├── make decisions
+ │    ├── actuate hardware
+ │    └── publish MQTT
+ └── every 1.5s:
+      └── update LCD
 Current Sensor (ACS712)	        Pump diagnostics
