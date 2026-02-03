@@ -1,106 +1,162 @@
     # Automated Greenhouse Controller
 
+============================================================
+                 AUTOMATED GREENHOUSE CONTROLLER
+============================================================
+
 This project implements:
+- Climate monitoring (temperature, humidity, intake air)
+- Automated ventilation
+- Automated window control
+- Soil moisture–based irrigation
+- Flow rate monitoring
+- MQTT-based remote control
+- Local LCD status display
+- Manual override via MQTT
 
-Climate monitoring (temp, humidity, intake air)
 
-Automated ventilation
+------------------------------------------------------------
+CORE CONTROLLER
+------------------------------------------------------------
 
-Automated window control
++---------------------------+-----+---------------------------+------------------------------------------+
+| Item                      | Qty | Specification             | Notes                                    |
++---------------------------+-----+---------------------------+------------------------------------------+
+| ESP32 Development Board   |  1  | ESP32-WROOM / DevKitC     | WiFi, interrupts, ADC, I2C required      |
++---------------------------+-----+---------------------------+------------------------------------------+
 
-Soil moisture–based irrigation
 
-Flow rate monitoring
+------------------------------------------------------------
+SENSORS
+------------------------------------------------------------
 
-MQTT-based remote control
++-----------------------------------+-----+---------------------------+------------------------------------------+
+| Item                              | Qty | Specification             | Used For                                 |
++-----------------------------------+-----+---------------------------+------------------------------------------+
+| DHT22 Temp/Humidity Sensor        |  2  | AM2302                    | High + low mounted air temp & RH         |
+| DS18B20 Temperature Sensor        |  1  | Waterproof recommended    | Intake air temperature                  |
+| Soil Moisture Sensor (Analog)     |  1  | Capacitive preferred      | Uses ADC pin                            |
+| Water Flow Sensor                 |  1  | Hall-effect (YF-S201)     | Irrigation flow rate                    |
+| Magnetic Reed Switch              |  1  | Normally closed           | Door open / closed detection            |
++-----------------------------------+-----+---------------------------+------------------------------------------+
 
-Local LCD status display
 
-Manual override via MQTT
+------------------------------------------------------------
+ACTUATORS (RELAYS / LOADS)
+------------------------------------------------------------
 
-Core Controller
++---------------------------+-----+---------------------------+------------------------------------------+
+| Item                      | Qty | Type                      | Controlled Device                        |
++---------------------------+-----+---------------------------+------------------------------------------+
+| Relay Channels            |  8  | 5V or 3.3V compatible     |                                          |
+| -> Window Actuators       |  2  | Directional / Timed       | Window 1 & 2                             |
+| -> Intake Flap Actuator   |  1  | Motor / Solenoid          | Fresh air flap                          |
+| -> Exhaust Flap Actuator  |  1  | Motor / Solenoid          | Exhaust flap                            |
+| -> Exhaust Fan            |  1  | AC or DC                  | High temperature ventilation            |
+| -> Intake Fan             |  1  | AC or DC                  | Fresh air intake                        |
+| -> Water Pump             |  1  | AC or DC                  | Irrigation                              |
+| -> Spare Relay            |  1  | --                        | Expansion                               |
++---------------------------+-----+---------------------------+------------------------------------------+
 
-Item	Qty	Specification	Notes
-ESP32 Development Board	1	ESP32-WROOM / DevKitC	Must support WiFi, interrupts, ADC, I2C
+NOTE:
+- Relays are ACTIVE LOW (HIGH = OFF)
 
-🌡️ Sensors
 
-Item	Qty	Specification	Used For
-DHT22 Temperature/Humidity Sensor	2	AM2302	High + low mounted air temp & RH
-DS18B20 Temperature Sensor	1	Waterproof recommended	Intake air temperature
-Soil Moisture Sensor (Analog)	1	Capacitive preferred	Uses ADC pin
-Water Flow Sensor	1	Hall-effect (e.g. YF-S201)	Irrigation flow rate
-Magnetic Reed Switch	1	Normally closed	Door open/closed detection
+------------------------------------------------------------
+DISPLAY & INTERFACE
+------------------------------------------------------------
 
-🪟Actuators (Relays / Loads)
++---------------------------+-----+---------------------------+
+| Item                      | Qty | Specification             |
++---------------------------+-----+---------------------------+
+| LCD Display               |  1  | 16x2 I2C (0x3F)           |
+| Push Button / Jumper      |  1  | Pull-up                   |
++---------------------------+-----+---------------------------+
 
-Item	Qty	Type	Controlled Device
-Relay Channel	8	5V or 3.3V compatible	
-→ Window Motor / Linear Actuator	2	Directional or timed	Window 1 & 2
-→ Intake Flap Actuator	1	Motor / Solenoid	Fresh air flap
-→ Exhaust Flap Actuator	1	Motor / Solenoid	Exhaust flap
-→ Exhaust Fan	1	AC or DC	High temp ventilation
-→ Intake Fan	1	AC or DC	Fresh air intake
-→ Water Pump	1	DC / AC	Irrigation
-→ Spare Relay	1	—	Expansion
 
-⚠️ Relays are active LOW (HIGH = off)
+------------------------------------------------------------
+POWER & ELECTRICAL
+------------------------------------------------------------
 
-🖥️ Display & Interface
++---------------------------+-----+------------------------------------------+
+| Item                      | Qty | Notes                                    |
++---------------------------+-----+------------------------------------------+
+| 5V Power Supply           |  1  | >= 2A recommended                        |
+| Relay Module Power        |  1  | Isolated preferred                       |
+| Logic Level Converter     | Opt | Required if relays are 5V-only           |
+| Flyback Diodes            | Req | For motors / solenoids                   |
+| Terminal Blocks           | Var | Safe wiring                              |
++---------------------------+-----+------------------------------------------+
 
-Item	Qty	Specification
-LCD Display	1	16×2 I2C (0x3F)
-Push Button / Jumper	1	Pull-up
 
-🔌 Power & Electrical
+------------------------------------------------------------
+NETWORK & CONTROL
+------------------------------------------------------------
 
-Item	Qty	Notes
-5V Power Supply	1	≥2A recommended
-Relay Module Power	1	Isolated preferred
-Logic Level Converter	Optional	If relays are 5V-only
-Flyback Diodes	If DC loads	For motors / solenoids
-Terminal Blocks	As needed	Safe wiring
++---------------------------+-----+------------------------------------------+
+| Item                      | Qty | Purpose                                  |
++---------------------------+-----+------------------------------------------+
+| WiFi Network              |  1  | ESP32 connectivity                      |
+| MQTT Broker               |  1  | Raspberry Pi / NAS / Server             |
+| MQTT Credentials          |  1  | Defined in secrets.h                    |
++---------------------------+-----+------------------------------------------+
 
-🌐 Network & Control
 
-Item	Qty	Purpose
-WiFi Network	1	ESP32 connectivity
-MQTT Broker	1	Raspberry Pi / NAS / Server
-MQTT Credentials	1	Defined in secrets.h
+------------------------------------------------------------
+WIRING & ACCESSORIES
+------------------------------------------------------------
 
-🧵 Wiring & Accessories
++---------------------------+-----+
+| Item                      | Qty |
++---------------------------+-----+
+| Jumper Wires (M/F/F/F)    | Var |
+| Breadboard / PCB          |  1  |
+| Waterproof Enclosures     | Var |
+| Cable Glands              | Var |
+| Heat Shrink / Ferrules    | Var |
++---------------------------+-----+
 
-Item	Qty
-Jumper Wires (M/F/F/F)	Assorted
-Breadboard / PCB	1
-Waterproof Enclosures	As needed
-Cable Glands	As needed
-Heat Shrink / Ferrules	As needed
 
-📦 Optional / Recommended Improvements
+------------------------------------------------------------
+OPTIONAL / RECOMMENDED IMPROVEMENTS
+------------------------------------------------------------
 
-Item	Reason
-Capacitive Soil Sensor	Longer lifespan
-Opto-isolated Relays	ESP32 protection
-RTC Module	Time-based irrigation
-Fuse / Circuit Breaker	        Safety
++---------------------------+------------------------------------------+
+| Item                      | Reason                                   |
++---------------------------+------------------------------------------+
+| Capacitive Soil Sensor    | Longer lifespan                          |
+| Opto-isolated Relays      | ESP32 protection                        |
+| RTC Module                | Time-based irrigation                   |
+| Fuse / Circuit Breaker    | Safety                                  |
+| Current Sensor (ACS712)   | Pump diagnostics                        |
++---------------------------+------------------------------------------+
 
-Application Flow......
+
+------------------------------------------------------------
+APPLICATION FLOW
+------------------------------------------------------------
 
 BOOT
- └── setup()
-     ├── init hardware
-     ├── init sensors
-     ├── init display
-     └── optional WiFi/MQTT
+ |
+ +-- setup()
+     |
+     +-- initialize hardware
+     +-- initialize sensors
+     +-- initialize display
+     +-- optional WiFi / MQTT connection
+
 
 LOOP
- ├── keep MQTT alive
- ├── every 5s:
- │    ├── read sensors
- │    ├── make decisions
- │    ├── actuate hardware
- │    └── publish MQTT
- └── every 1.5s:
-      └── update LCD
-Current Sensor (ACS712)	        Pump diagnostics
+ |
+ +-- maintain MQTT connection
+ |
+ +-- every 5 seconds:
+ |     |
+ |     +-- read sensors
+ |     +-- make control decisions
+ |     +-- actuate relays / hardware
+ |     +-- publish MQTT telemetry
+ |
+ +-- every 1.5 seconds:
+       |
+       +-- update LCD display
