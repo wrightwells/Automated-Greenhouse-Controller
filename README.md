@@ -108,7 +108,73 @@ An ESP32-based automated greenhouse control system featuring climate monitoring,
 | Current Sensor (ACS712) | Pump diagnostics |
 
 ---
- 
+ESP32 Pin Assignment
+
+### Sensor Inputs
+
+| Component            | ESP32 GPIO | Notes |
+|----------------------|------------|-------|
+| DHT22 #1             | GPIO14     | 4.7kΩ pull-up to 3.3V |
+| DHT22 #2             | GPIO27     | 4.7kΩ pull-up to 3.3V |
+| DS18B20 Data         | GPIO33     | 4.7kΩ pull-up to 3.3V |
+| Soil Moisture (ADC)  | GPIO32     | Analog input |
+| Water Flow Sensor    | GPIO25     | Interrupt capable |
+| Reed Switch          | GPIO26     | Input with pull-up |
+| Push Button          | GPIO34     | Input only pin |
+
+---
+
+### Relay Outputs
+
+| Relay Channel | ESP32 GPIO | Function |
+|--------------|------------|----------|
+| IN1          | GPIO4      | Window Motor Open |
+| IN2          | GPIO5      | Window Motor Close |
+| IN3          | GPIO16     | Intake Flap |
+| IN4          | GPIO17     | Exhaust Flap |
+| IN5          | GPIO18     | Exhaust Fan |
+| IN6          | GPIO19     | Intake Fan |
+| IN7          | GPIO23     | Water Pump |
+| IN8          | GPIO13     | Spare |
+
+> ⚠️ Relay module inputs are **active LOW**
+
+---
+
+### I2C Display
+
+| LCD Pin | ESP32 GPIO |
+|--------|------------|
+| SDA    | GPIO21 |
+| SCL    | GPIO22 |
+| VCC    | 5V (or 3.3V if supported) |
+| GND    | GND |
+
+---
+
+## Power Connections
+
+### ESP32
+- Powered via **5V pin or USB**
+- Internal regulator supplies **3.3V**
+
+### Relay Module
+- VCC → **5V**
+- GND → **Common GND with ESP32**
+
+### Sensors
+- Powered from **3.3V** unless otherwise specified
+- Grounds tied to **common ground**
+
+---
+
+## Pull-Up Resistors
+
+| Sensor | Pull-Up |
+|------|---------|
+| DHT22 | 4.7kΩ between DATA and 3.3V |
+| DS18B20 | 4.7kΩ between DATA and 3.3V |
+| Reed Switch | Internal pull-up enabled | 
 
 ## 🔁 Application Flow
 
